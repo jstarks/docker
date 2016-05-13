@@ -54,6 +54,10 @@ func (ml *mockLayer) Metadata() (map[string]string, error) {
 	return make(map[string]string), nil
 }
 
+func (ml *mockLayer) ForeignSource() *layer.ForeignSource {
+	return nil
+}
+
 type mockLayerStore struct {
 	layers map[layer.ChainID]*mockLayer
 }
@@ -71,6 +75,10 @@ func createChainIDFromParent(parent layer.ChainID, dgsts ...layer.DiffID) layer.
 }
 
 func (ls *mockLayerStore) Register(reader io.Reader, parentID layer.ChainID) (layer.Layer, error) {
+	return ls.RegisterForeign(reader, parentID, nil)
+}
+
+func (ls *mockLayerStore) RegisterForeign(reader io.Reader, parentID layer.ChainID, _ *layer.ForeignSource) (layer.Layer, error) {
 	var (
 		parent layer.Layer
 		err    error
@@ -164,6 +172,10 @@ func (d *mockDownloadDescriptor) DiffID() (layer.DiffID, error) {
 		return d.diffID, nil
 	}
 	return "", errors.New("no diffID available")
+}
+
+func (d *mockDownloadDescriptor) ForeignSource() *layer.ForeignSource {
+	return nil
 }
 
 func (d *mockDownloadDescriptor) Registered(diffID layer.DiffID) {

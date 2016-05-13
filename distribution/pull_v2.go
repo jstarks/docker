@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"net/url"
 	"os"
 	"runtime"
@@ -133,6 +134,7 @@ type v2LayerDescriptor struct {
 	V2MetadataService *metadata.V2MetadataService
 	tmpFile           *os.File
 	verifier          digest.Verifier
+	foreignSrc        *layer.ForeignSource
 }
 
 func (ld *v2LayerDescriptor) Key() string {
@@ -145,6 +147,10 @@ func (ld *v2LayerDescriptor) ID() string {
 
 func (ld *v2LayerDescriptor) DiffID() (layer.DiffID, error) {
 	return ld.V2MetadataService.GetDiffID(ld.digest)
+}
+
+func (ld *v2LayerDescriptor) ForeignSource() *layer.ForeignSource {
+	return ld.foreignSrc
 }
 
 func (ld *v2LayerDescriptor) Download(ctx context.Context, progressOutput progress.Output) (io.ReadCloser, int64, error) {
@@ -182,13 +188,18 @@ func (ld *v2LayerDescriptor) Download(ctx context.Context, progressOutput progre
 	tmpFile := ld.tmpFile
 	blobs := ld.repo.Blobs(ctx)
 
-	layerDownload, err := blobs.Open(ctx, ld.digest)
-	if err != nil {
-		logrus.Errorf("Error initiating layer download: %v", err)
-		if err == distribution.ErrBlobUnknown {
-			return nil, 0, xfer.DoNotRetry{Err: err}
+	var layerDownload distribution.ReadSeekCloser
+	if ld.foreignSrc == nil {
+		layerDownload, err = blobs.Open(ctx, ld.digest)
+		if err != nil {
+			logrus.Errorf("Error initiating layer download: %v", err)
+			if err == distribution.ErrBlobUnknown {
+				return nil, 0, xfer.DoNotRetry{Err: err}
+			}
+			return nil, 0, retryOnError(err)
 		}
-		return nil, 0, retryOnError(err)
+	} else {
+		layerDownload = transport.NewHTTPReadSeeker(http.DefaultClient, ld.foreignSrc.URL, nil)
 	}
 
 	if offset != 0 {
@@ -521,12 +532,20 @@ func (p *v2Puller) pullSchema2(ctx context.Context, ref reference.Named, mfst *s
 
 	// Note that the order of this loop is in the direction of bottom-most
 	// to top-most, so that the downloads slice gets ordered correctly.
-	for _, d := range mfst.References() {
+	for _, d := range mfst.Layers {
 		layerDescriptor := &v2LayerDescriptor{
 			digest:            d.Digest,
 			repo:              p.repo,
 			repoInfo:          p.repoInfo,
 			V2MetadataService: p.V2MetadataService,
+		}
+
+		if d.ForeignURL != "" {
+			layerDescriptor.foreignSrc = &layer.ForeignSource{
+				Digest: d.Digest,
+				Size:   d.Size,
+				URL:    d.ForeignURL,
+			}
 		}
 
 		descriptors = append(descriptors, layerDescriptor)

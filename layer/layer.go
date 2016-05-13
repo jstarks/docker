@@ -105,6 +105,10 @@ type Layer interface {
 	// Metadata returns the low level storage metadata associated
 	// with layer.
 	Metadata() (map[string]string, error)
+
+	// ForeignSource returns the foreign reference information for
+	// the layer.
+	ForeignSource() *ForeignSource
 }
 
 // RWLayer represents a layer which is
@@ -168,6 +172,7 @@ type MountInit func(root string) error
 // read-only and read-write layers.
 type Store interface {
 	Register(io.Reader, ChainID) (Layer, error)
+	RegisterForeign(io.Reader, ChainID, *ForeignSource) (Layer, error)
 	Get(ChainID) (Layer, error)
 	Release(Layer) ([]Metadata, error)
 
@@ -189,6 +194,7 @@ type MetadataTransaction interface {
 	SetParent(parent ChainID) error
 	SetDiffID(DiffID) error
 	SetCacheID(string) error
+	SetForeignSource(*ForeignSource) error
 	TarSplitWriter(compressInput bool) (io.WriteCloser, error)
 
 	Commit(ChainID) error
@@ -208,6 +214,7 @@ type MetadataStore interface {
 	GetParent(ChainID) (ChainID, error)
 	GetDiffID(ChainID) (DiffID, error)
 	GetCacheID(ChainID) (string, error)
+	GetForeignSource(ChainID) (*ForeignSource, error)
 	TarSplitReader(ChainID) (io.ReadCloser, error)
 
 	SetMountID(string, string) error
@@ -224,6 +231,14 @@ type MetadataStore interface {
 
 	Remove(ChainID) error
 	RemoveMount(string) error
+}
+
+// ForeignSource contains information about the source of a layer
+// that must be downloaded from a foreign URL.
+type ForeignSource struct {
+	URL    string        `json:"url"`
+	Digest digest.Digest `json:"digest"`
+	Size   int64         `json:"size"`
 }
 
 // CreateChainID returns ID for a layerDigest slice

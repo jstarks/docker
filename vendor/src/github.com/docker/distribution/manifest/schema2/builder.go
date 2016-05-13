@@ -16,7 +16,7 @@ type builder struct {
 
 	// layers is a list of layer descriptors that gets built by successive
 	// calls to AppendReference.
-	layers []distribution.Descriptor
+	layers []LayerDescriptor
 }
 
 // NewManifestBuilder is used to build new manifests for the current schema
@@ -36,7 +36,7 @@ func NewManifestBuilder(bs distribution.BlobService, configJSON []byte) distribu
 func (mb *builder) Build(ctx context.Context) (distribution.Manifest, error) {
 	m := Manifest{
 		Versioned: SchemaVersion,
-		Layers:    make([]distribution.Descriptor, len(mb.layers)),
+		Layers:    make([]LayerDescriptor, len(mb.layers)),
 	}
 	copy(m.Layers, mb.layers)
 
@@ -65,13 +65,27 @@ func (mb *builder) Build(ctx context.Context) (distribution.Manifest, error) {
 	return FromStruct(m)
 }
 
+// LayerDescribable is an interface used to provide a full LayerDescriptor
+// to AppendReference().
+type LayerDescribable interface {
+	LayerDescriptor() LayerDescriptor
+}
+
 // AppendReference adds a reference to the current ManifestBuilder.
 func (mb *builder) AppendReference(d distribution.Describable) error {
-	mb.layers = append(mb.layers, d.Descriptor())
+	if ld, ok := d.(LayerDescribable); ok {
+		mb.layers = append(mb.layers, ld.LayerDescriptor())
+	} else {
+		mb.layers = append(mb.layers, LayerDescriptor{Descriptor: d.Descriptor()})
+	}
 	return nil
 }
 
 // References returns the current references added to this builder.
 func (mb *builder) References() []distribution.Descriptor {
-	return mb.layers
+	ds := make([]distribution.Descriptor, len(mb.layers))
+	for i := range mb.layers {
+		ds[i] = mb.layers[i].Descriptor
+	}
+	return ds
 }

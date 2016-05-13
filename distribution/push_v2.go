@@ -227,6 +227,8 @@ type v2PushDescriptor struct {
 	remoteDescriptor  distribution.Descriptor
 }
 
+var _ schema2.LayerDescribable = (*v2PushDescriptor)(nil)
+
 func (pd *v2PushDescriptor) Key() string {
 	return "v2push:" + pd.repo.Named().Name() + " " + pd.layer.DiffID().String()
 }
@@ -240,6 +242,11 @@ func (pd *v2PushDescriptor) DiffID() layer.DiffID {
 }
 
 func (pd *v2PushDescriptor) Upload(ctx context.Context, progressOutput progress.Output) (distribution.Descriptor, error) {
+	if pd.layer.ForeignSource() != nil {
+		progress.Update(progressOutput, pd.ID(), "Layer already exists")
+		return distribution.Descriptor{}, nil
+	}
+
 	diffID := pd.DiffID()
 
 	pd.pushState.Lock()
@@ -411,7 +418,23 @@ func (pd *v2PushDescriptor) SetRemoteDescriptor(descriptor distribution.Descript
 }
 
 func (pd *v2PushDescriptor) Descriptor() distribution.Descriptor {
-	return pd.remoteDescriptor
+	return pd.LayerDescriptor().Descriptor
+}
+
+func (pd *v2PushDescriptor) LayerDescriptor() schema2.LayerDescriptor {
+	foreignSrc := pd.layer.ForeignSource()
+	if foreignSrc == nil {
+		return schema2.LayerDescriptor{Descriptor: pd.remoteDescriptor}
+	}
+
+	return schema2.LayerDescriptor{
+		Descriptor: distribution.Descriptor{
+			MediaType: schema2.MediaTypeForeignLayer,
+			Digest:    foreignSrc.Digest,
+			Size:      foreignSrc.Size,
+		},
+		ForeignURL: foreignSrc.URL,
+	}
 }
 
 // layerAlreadyExists checks if the registry already know about any of the

@@ -15,10 +15,11 @@ const (
 )
 
 type manifestItem struct {
-	Config   string
-	RepoTags []string
-	Layers   []string
-	Parent   image.ID `json:",omitempty"`
+	Config       string
+	RepoTags     []string
+	Layers       []string
+	Parent       image.ID                              `json:",omitempty"`
+	LayerSources map[layer.DiffID]*layer.ForeignSource `json:",omitempty"`
 }
 
 type tarexporter struct {

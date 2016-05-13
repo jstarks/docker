@@ -430,6 +430,10 @@ func (l *mockLayer) DiffSize() (int64, error) {
 	return 0, nil
 }
 
+func (l *mockLayer) ForeignSource() *layer.ForeignSource {
+	return nil
+}
+
 func (l *mockLayer) Metadata() (map[string]string, error) {
 	return nil, nil
 }

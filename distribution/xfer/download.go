@@ -62,6 +62,9 @@ type DownloadDescriptor interface {
 	// if it is unknown (for example, if it has not been downloaded
 	// before).
 	DiffID() (layer.DiffID, error)
+	// ForeignSource returns nil or the foreign layer's information and
+	// source.
+	ForeignSource() *layer.ForeignSource
 	// Download is called to perform the download.
 	Download(ctx context.Context, progressOutput progress.Output) (io.ReadCloser, int64, error)
 	// Close is called when the download manager is finished with this
@@ -318,7 +321,7 @@ func (ldm *LayerDownloadManager) makeDownloadFunc(descriptor DownloadDescriptor,
 				return
 			}
 
-			d.layer, err = d.layerStore.Register(inflatedLayerData, parentLayer)
+			d.layer, err = d.layerStore.RegisterForeign(inflatedLayerData, parentLayer, descriptor.ForeignSource())
 			if err != nil {
 				select {
 				case <-d.Transfer.Context().Done():
@@ -409,7 +412,7 @@ func (ldm *LayerDownloadManager) makeDownloadFuncFromDownload(descriptor Downloa
 			}
 			defer layerReader.Close()
 
-			d.layer, err = d.layerStore.Register(layerReader, parentLayer)
+			d.layer, err = d.layerStore.RegisterForeign(layerReader, parentLayer, l.ForeignSource())
 			if err != nil {
 				d.err = fmt.Errorf("failed to register layer: %v", err)
 				return

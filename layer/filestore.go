@@ -2,6 +2,7 @@ package layer
 
 import (
 	"compress/gzip"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -98,6 +99,14 @@ func (fm *fileMetadataTransaction) SetCacheID(cacheID string) error {
 	return ioutil.WriteFile(filepath.Join(fm.root, "cache-id"), []byte(cacheID), 0644)
 }
 
+func (fm *fileMetadataTransaction) SetForeignSource(ref *ForeignSource) error {
+	jsonRef, err := json.Marshal(ref)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(filepath.Join(fm.root, "foreign-source"), jsonRef, 0644)
+}
+
 func (fm *fileMetadataTransaction) TarSplitWriter(compressInput bool) (io.WriteCloser, error) {
 	f, err := os.OpenFile(filepath.Join(fm.root, "tar-split.json.gz"), os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -189,6 +198,23 @@ func (fms *fileMetadataStore) GetCacheID(layer ChainID) (string, error) {
 	}
 
 	return content, nil
+}
+
+func (fms *fileMetadataStore) GetForeignSource(layer ChainID) (*ForeignSource, error) {
+	content, err := ioutil.ReadFile(fms.getLayerFilename(layer, "foreign-source"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var ref *ForeignSource
+	err = json.Unmarshal(content, &ref)
+	if err != nil {
+		return nil, err
+	}
+	return ref, err
 }
 
 func (fms *fileMetadataStore) TarSplitReader(layer ChainID) (io.ReadCloser, error) {

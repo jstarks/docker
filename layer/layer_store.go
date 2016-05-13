@@ -128,11 +128,17 @@ func (ls *layerStore) loadLayer(layer ChainID) (*roLayer, error) {
 		return nil, fmt.Errorf("failed to get parent for %s: %s", layer, err)
 	}
 
+	foreignSrc, err := ls.store.GetForeignSource(layer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get foreign reference for %s: %s", layer, err)
+	}
+
 	cl = &roLayer{
 		chainID:    layer,
 		diffID:     diff,
 		size:       size,
 		cacheID:    cacheID,
+		foreignSrc: foreignSrc,
 		layerStore: ls,
 		references: map[Layer]struct{}{},
 	}
@@ -228,6 +234,10 @@ func (ls *layerStore) applyTar(tx MetadataTransaction, ts io.Reader, parent stri
 }
 
 func (ls *layerStore) Register(ts io.Reader, parent ChainID) (Layer, error) {
+	return ls.RegisterForeign(ts, parent, nil)
+}
+
+func (ls *layerStore) RegisterForeign(ts io.Reader, parent ChainID, foreignSrc *ForeignSource) (Layer, error) {
 	// err is used to hold the error which will always trigger
 	// cleanup of creates sources but may not be an error returned
 	// to the caller (already exists).
@@ -258,6 +268,7 @@ func (ls *layerStore) Register(ts io.Reader, parent ChainID) (Layer, error) {
 	layer := &roLayer{
 		parent:         p,
 		cacheID:        stringid.GenerateRandomID(),
+		foreignSrc:     foreignSrc,
 		referenceCount: 1,
 		layerStore:     ls,
 		references:     map[Layer]struct{}{},

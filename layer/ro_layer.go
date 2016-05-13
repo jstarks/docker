@@ -14,6 +14,7 @@ type roLayer struct {
 	cacheID    string
 	size       int64
 	layerStore *layerStore
+	foreignSrc *ForeignSource
 
 	referenceCount int
 	references     map[Layer]struct{}
@@ -75,6 +76,10 @@ func (rl *roLayer) Metadata() (map[string]string, error) {
 	return rl.layerStore.driver.GetMetadata(rl.cacheID)
 }
 
+func (rl *roLayer) ForeignSource() *ForeignSource {
+	return rl.foreignSrc
+}
+
 type referencedCacheLayer struct {
 	*roLayer
 }
@@ -120,6 +125,11 @@ func storeLayer(tx MetadataTransaction, layer *roLayer) error {
 	}
 	if layer.parent != nil {
 		if err := tx.SetParent(layer.parent.chainID); err != nil {
+			return err
+		}
+	}
+	if layer.foreignSrc != nil {
+		if err := tx.SetForeignSource(layer.foreignSrc); err != nil {
 			return err
 		}
 	}

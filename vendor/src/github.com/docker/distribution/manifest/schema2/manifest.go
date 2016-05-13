@@ -20,6 +20,10 @@ const (
 	// MediaTypeLayer is the mediaType used for layers referenced by the
 	// manifest.
 	MediaTypeLayer = "application/vnd.docker.image.rootfs.diff.tar.gzip"
+
+	// MediaTypeForeignLayer is the mediaType used for layers that must be
+	// downloaded from foreign URLs.
+	MediaTypeForeignLayer = "application/vnd.docker.image.foreign.rootfs.diff.tar.gzip"
 )
 
 var (
@@ -48,6 +52,14 @@ func init() {
 	}
 }
 
+// LayerDescriptor is an extension to distribution.Descriptor that
+// has additional fields specific to layers.
+type LayerDescriptor struct {
+	distribution.Descriptor
+	// ForeignURL contains the foreign source URL of this layer.
+	ForeignURL string `json:"foreign_url,omitempty"`
+}
+
 // Manifest defines a schema2 manifest.
 type Manifest struct {
 	manifest.Versioned
@@ -57,13 +69,16 @@ type Manifest struct {
 
 	// Layers lists descriptors for the layers referenced by the
 	// configuration.
-	Layers []distribution.Descriptor `json:"layers"`
+	Layers []LayerDescriptor `json:"layers"`
 }
 
 // References returnes the descriptors of this manifests references.
 func (m Manifest) References() []distribution.Descriptor {
-	return m.Layers
-
+	ds := make([]distribution.Descriptor, len(m.Layers))
+	for i := range m.Layers {
+		ds[i] = m.Layers[i].Descriptor
+	}
+	return ds
 }
 
 // Target returns the target of this signed manifest.
